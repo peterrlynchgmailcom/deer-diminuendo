@@ -1,0 +1,23 @@
+body {
+  font-family: sans-serif;
+  text-align: center;
+  background: #d0f0f6;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  padding: 2rem;
+}
+
+canvas {
+  background: #a8e6cf;
+  border: 2px solid #333;
+  margin: 1rem auto;
+  display: block;
+}
+
+#status {
+  font-size: 1.2rem;
+  margin-top: 1rem;
+}

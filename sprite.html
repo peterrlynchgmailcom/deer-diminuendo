@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deer Diminuendo</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #e0f7fa;
+      text-align: center;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: url('background.png') no-repeat center center;
+      background-size: cover;
+    }
+
+    #status {
+      position: absolute;
+      top: 10px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      text-shadow: 1px 1px 2px white;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Initializing...</div>
+  <canvas id="scene" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+
+    const sprite = new Image();
+    sprite.src = 'deer_sprite.png';
+
+    const butterflyImg = new Image();
+    butterflyImg.src = 'butterfly.png';
+
+    const columns = 4;
+    const rows = 2;
+    const totalFrames = columns * rows;
+    const frameWidth = 384;
+    const frameHeight = 512;
+    let currentFrame = 0;
+    const idleFrame = 3; // hold on this frame when deer is visible
+    const fps = 8;
+    const frameDuration = 1000 / fps;
+    let lastFrameTime = 0;
+    let animating = false;
+    let animationComplete = false;
+
+    let butterflies = [];
+    let deerVisible = false;
+
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      butterflies.forEach(b => {
+        ctx.drawImage(butterflyImg, b.x, b.y, 40, 40);
+      });
+
+      if (deerVisible || animating) {
+        const col = currentFrame % columns;
+        const row = Math.floor(currentFrame / columns);
+        const sx = col * frameWidth;
+        const sy = row * frameHeight;
+
+        ctx.drawImage(sprite, sx, sy, frameWidth, frameHeight, 208, 44, frameWidth, frameHeight);
+      }
+    }
+
+    function animateSprite(timestamp) {
+      if (!animating || animationComplete) return;
+
+      if (timestamp - lastFrameTime >= frameDuration) {
+        currentFrame++;
+        if (currentFrame >= totalFrames) {
+          currentFrame = idleFrame;
+          animationComplete = true;
+          deerVisible = true;
+        }
+        lastFrameTime = timestamp;
+      }
+
+      drawScene();
+      requestAnimationFrame(animateSprite);
+    }
+
+    function disappearDeer() {
+      animating = true;
+      animationComplete = false;
+      currentFrame = 4; // Assuming poof out starts here
+      const disappearInterval = setInterval(() => {
+        currentFrame++;
+        if (currentFrame >= totalFrames) {
+          clearInterval(disappearInterval);
+          animating = false;
+          deerVisible = false;
+        }
+        drawScene();
+      }, frameDuration);
+    }
+
+    let audioContext;
+    let analyser;
+    let dataArray;
+    let previousAverage = 0;
+    let intervalLog = [];
+
+    async function initMicrophone() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+
+        const bufferLength = analyser.fftSize;
+        dataArray = new Uint8Array(bufferLength);
+
+        source.connect(analyser);
+        document.getElementById('status').innerText = "Monitoring volume...";
+        startMonitoring();
+      } catch (err) {
+        console.error('Microphone access error:', err);
+        document.getElementById('status').innerText = "Microphone access denied.";
+      }
+    }
+
+    function getVolume() {
+      analyser.getByteTimeDomainData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        let value = dataArray[i] - 128;
+        sum += value * value;
+      }
+      return Math.sqrt(sum / dataArray.length); // RMS volume
+    }
+
+    function startMonitoring() {
+      setInterval(() => {
+        let currentVolume = getVolume();
+        intervalLog.push(currentVolume);
+
+        if (intervalLog.length >= 15) { // 15 seconds for testing
+          let average = intervalLog.reduce((a, b) => a + b) / intervalLog.length;
+          let status;
+
+          if (previousAverage === 0) {
+            status = "First interval...";
+            animating = true;
+            currentFrame = 0;
+            requestAnimationFrame(animateSprite);
+          } else if (average < previousAverage * 1.05) {
+            status = "Good job! 😊";
+            if (!deerVisible && !animating) {
+              animating = true;
+              currentFrame = 0;
+              animationComplete = false;
+              requestAnimationFrame(animateSprite);
+            }
+
+            butterflies.push({
+              x: Math.random() * (canvas.width - 40),
+              y: Math.random() * (canvas.height - 40)
+            });
+          } else {
+            status = "Too loud ❌";
+            if (deerVisible && !animating) {
+              disappearDeer();
+            }
+          }
+
+          previousAverage = average;
+          document.getElementById('status').innerText = status;
+          intervalLog = [];
+        }
+
+        if (!animating) drawScene();
+      }, 1000);
+    }
+
+    initMicrophone();
+  </script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deer Diminuendo App</title>
+  <style>
+    body {
+      margin: 0;
+      background: #e0f7fa;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+
+    h1 {
+      text-align: center;
+      margin: 16px 0;
+      font-size: 2em;
+      color: #3e4e50;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: url('background.png') no-repeat center center;
+      background-size: cover;
+    }
+  </style>
+</head>
+<body>
+  <h1>Deer Diminuendo</h1>
+  <canvas id="scene" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+
+    const deerSprite = new Image();
+    deerSprite.src = 'deer-sprite.png';
+
+    const butterflyImg = new Image();
+    butterflyImg.src = 'butterfly.png';
+    butterflyImg.onload = () => {
+  // Start everything after image is ready
+  initMicrophone();
+};
+
+
+    let deerVisible = false;
+    let butterflies = [];
+
+    // Sprite configuration
+    const SPRITE_WIDTH = 384;
+    const SPRITE_HEIGHT = 512;
+    const SPRITE_ROWS = 2;
+    const SPRITE_COLS = 4;
+    let currentFrame = 0;
+    let frameCounter = 0;
+    let animationState = 'idle'; // 'appear', 'idle', 'disappear'
+
+    const appearFrames = [0, 7, 6, 5];        // 1,8,7,6
+    const disappearFrames = [5, 6, 7, 0];     // 6,7,8,1
+    const idleFrames = [1, 2, 3, 4];          // 2–5
+
+    let appearIndex = 0;
+    let disappearIndex = 0;
+    let idleIndex = 0;
+
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (deerVisible || animationState !== 'idle') {
+        let row = Math.floor(currentFrame / SPRITE_COLS);
+        let col = currentFrame % SPRITE_COLS;
+
+        ctx.drawImage(
+          deerSprite,
+          col * SPRITE_WIDTH,
+          row * SPRITE_HEIGHT,
+          SPRITE_WIDTH,
+          SPRITE_HEIGHT,
+          215, // X
+          175, // Y
+          SPRITE_WIDTH / 4, // Width
+          SPRITE_HEIGHT / 4 // Height
+        );
+      }
+
+      butterflies.forEach(b => {
+        ctx.drawImage(butterflyImg, b.x, b.y, 40, 40);
+      });
+    }
+
+    function updateAnimation() {
+      frameCounter++;
+      if (frameCounter % 2 === 0) {
+        if (animationState === 'appear') {
+          currentFrame = appearFrames[appearIndex++];
+          if (appearIndex >= appearFrames.length) {
+            appearIndex = 0;
+            animationState = 'idle';
+          }
+        } else if (animationState === 'disappear') {
+          currentFrame = disappearFrames[disappearIndex++];
+          if (disappearIndex >= disappearFrames.length) {
+            disappearIndex = 0;
+            animationState = 'idle';
+          }
+        } else if (animationState === 'idle' && deerVisible) {
+          currentFrame = idleFrames[idleIndex];
+          idleIndex = (idleIndex + 1) % idleFrames.length;
+        }
+      }
+    }
+
+    let audioContext;
+    let analyser;
+    let dataArray;
+    let previousAverage = 0;
+    let intervalLog = [];
+    let intervalDuration = 10;
+    const maxDuration = 60;
+
+    async function initMicrophone() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+
+        const bufferLength = analyser.fftSize;
+        dataArray = new Uint8Array(bufferLength);
+
+        source.connect(analyser);
+        startMonitoring();
+      } catch (err) {
+        console.error('Microphone access error:', err);
+      }
+    }
+
+    function getVolume() {
+      analyser.getByteTimeDomainData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        let value = dataArray[i] - 128;
+        sum += value * value;
+      }
+      return Math.sqrt(sum / dataArray.length); // RMS volume
+    }
+
+    function startMonitoring() {
+      setInterval(() => {
+        let currentVolume = getVolume();
+        intervalLog.push(currentVolume);
+
+        if (intervalLog.length >= intervalDuration) {
+          let average = intervalLog.reduce((a, b) => a + b) / intervalLog.length;
+
+          if (previousAverage === 0) {
+            deerVisible = true;
+            animationState = 'appear';
+          } else if (average < previousAverage * 1.05) {
+            if (!deerVisible) animationState = 'appear';
+            deerVisible = true;
+            butterflies.push({
+              x: Math.random() * (canvas.width - 40),
+              y: Math.random() * (canvas.height - 40)
+            });
+          } else {
+            if (deerVisible) animationState = 'disappear';
+            deerVisible = false;
+          }
+
+          previousAverage = average;
+          intervalLog = [];
+
+          if (intervalDuration < maxDuration) {
+            intervalDuration = Math.min(intervalDuration + 5, maxDuration);
+          }
+        }
+
+        updateAnimation();
+        drawScene();
+      }, 1000);
+    }
+
+
+  </script>
+</body>
+</html>
