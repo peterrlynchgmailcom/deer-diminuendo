@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Deer Diminuendo App</title>
   <style>
     body {
       margin: 0;
       background: #e0f7fa;
       font-family: sans-serif;
+      text-align: center;
       overflow: hidden;
     }
 
     h1 {
-      text-align: center;
-      margin: 16px 0;
+      margin: 16px 0 8px;
       font-size: 2em;
       color: #3e4e50;
     }
@@ -24,11 +24,41 @@
       background: url('background.png') no-repeat center center;
       background-size: cover;
     }
+
+    #startButton {
+      background-color: #a5d6a7;
+      border: 2px solid #558b2f;
+      color: #2e7d32;
+      font-size: 1.2em;
+      padding: 10px 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: background-color 0.3s;
+    }
+
+    #startButton:hover {
+      background-color: #81c784;
+    }
+
+    #startButton:active {
+      background-color: #66bb6a;
+    }
+
+    footer {
+      height: 40px;
+    }
   </style>
 </head>
 <body>
   <h1>Deer Diminuendo</h1>
-  <canvas id="scene" width="800" height="600"></canvas>
+
+  <main>
+    <button id="startButton">🌿 Start the Forest</button>
+    <canvas id="scene" width="800" height="600"></canvas>
+  </main>
+
+  <footer></footer>
 
   <script>
     const canvas = document.getElementById('scene');
@@ -39,28 +69,20 @@
 
     const butterflyImg = new Image();
     butterflyImg.src = 'butterfly.png';
-    butterflyImg.onload = () => {
-  // Start everything after image is ready
-  initMicrophone();
-};
-
 
     let deerVisible = false;
     let butterflies = [];
 
-    // Sprite configuration
     const SPRITE_WIDTH = 384;
     const SPRITE_HEIGHT = 512;
-    const SPRITE_ROWS = 2;
     const SPRITE_COLS = 4;
     let currentFrame = 0;
     let frameCounter = 0;
-    let animationState = 'idle'; // 'appear', 'idle', 'disappear'
+    let animationState = 'idle';
 
-    const appearFrames = [0, 7, 6, 5];        // 1,8,7,6
-    const disappearFrames = [5, 6, 7, 0];     // 6,7,8,1
-    const idleFrames = [1, 2, 3, 4];          // 2–5
-
+    const appearFrames = [0, 7, 6, 5];
+    const disappearFrames = [5, 6, 7, 0];
+    const idleFrames = [1, 2, 3, 4];
     let appearIndex = 0;
     let disappearIndex = 0;
     let idleIndex = 0;
@@ -69,8 +91,8 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (deerVisible || animationState !== 'idle') {
-        let row = Math.floor(currentFrame / SPRITE_COLS);
-        let col = currentFrame % SPRITE_COLS;
+        const row = Math.floor(currentFrame / SPRITE_COLS);
+        const col = currentFrame % SPRITE_COLS;
 
         ctx.drawImage(
           deerSprite,
@@ -78,10 +100,10 @@
           row * SPRITE_HEIGHT,
           SPRITE_WIDTH,
           SPRITE_HEIGHT,
-          215, // X
-          175, // Y
-          SPRITE_WIDTH / 4, // Width
-          SPRITE_HEIGHT / 4 // Height
+          215,
+          175,
+          SPRITE_WIDTH / 4,
+          SPRITE_HEIGHT / 4
         );
       }
 
@@ -134,6 +156,7 @@
         source.connect(analyser);
         startMonitoring();
       } catch (err) {
+        alert('Microphone access denied or not available.');
         console.error('Microphone access error:', err);
       }
     }
@@ -145,7 +168,7 @@
         let value = dataArray[i] - 128;
         sum += value * value;
       }
-      return Math.sqrt(sum / dataArray.length); // RMS volume
+      return Math.sqrt(sum / dataArray.length);
     }
 
     function startMonitoring() {
@@ -184,7 +207,25 @@
       }, 1000);
     }
 
+    // 🔋 Wake Lock
+    let wakeLock = null;
 
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Wake lock active');
+        }
+      } catch (err) {
+        console.warn('Wake lock request failed:', err);
+      }
+    }
+
+    document.getElementById('startButton').addEventListener('click', () => {
+      initMicrophone();
+      requestWakeLock();
+      document.getElementById('startButton').style.display = 'none';
+    });
   </script>
 </body>
 </html>
